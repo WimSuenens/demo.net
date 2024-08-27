@@ -1,0 +1,37 @@
+﻿@using System.ComponentModel.DataAnnotations
+@using MyDemoAPI.Services
+
+<EditForm Model="@form" OnValidSubmit="Submit">
+    <DataAnnotationsValidator/>
+    <MudDialog>
+        <DialogContent>
+            <MudSelect T="string" Label="Model" Clearable @bind-Value="form!.Model" For="@(() => form!.Model)"
+            AnchorOrigin="Origin.BottomCenter">
+            @foreach(var model in models) {
+                <MudSelectItem Value="@(model.Name)">@model.Label</MudSelectItem>
+            }
+            </MudSelect>
+        </DialogContent>
+        <DialogActions>
+            <MudButton OnClick="Cancel">Cancel</MudButton>
+            <MudButton Color="Color.Primary" Variant="Variant.Filled" ButtonType="ButtonType.Submit" EndIcon="@Icons.Material.Filled.Save">Save</MudButton>
+        </DialogActions>
+    </MudDialog>
+</EditForm>
+
+@code {
+    [CascadingParameter]
+    private MudDialogInstance? MudDialog { get; set; }
+    private List<AIModel> models = AIModel.GetOptions();
+    private void Submit() => MudDialog!.Close(DialogResult.Ok(form));
+
+    private void Cancel() => MudDialog!.Cancel();
+
+    [Parameter]
+    public ConversationSettingsForm? form { get; set; }
+    public class ConversationSettingsForm {
+        [Required(ErrorMessage = "You need to select a AI-model!")]
+        public string? Model { get; set; }
+    }
+
+}

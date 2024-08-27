@@ -1,0 +1,104 @@
+﻿@page "/conversations"
+
+@* TODO: https://www.meziantou.net/convert-datetime-to-user-s-time-zone-with-server-side-blazor-time-provider.htm *@
+
+@using System.Threading
+@using System.Net.Http.Json
+@using Anthropic
+@using MyDemoAPI.Components.Shared
+@using MyDemoAPI.Data.Models
+@using MyDemoAPI.Services
+@using System.Globalization
+@inject IConversationService _service
+@inject NavigationManager navigator
+@inject IDialogService DialogService
+@inject IConversationService _conversationService
+
+<MudContainer Class="w-100 h-100 pa-4">
+    <MudTable ServerData="ServerReload" Dense="true" Hover="true" @ref="table">
+        <ToolBarContent>
+            <MudText Typo="Typo.h6">Conversations</MudText>
+            <MudIconButton aria-label="open" Icon="@Icons.Material.Filled.Add"
+                OnClick="AddConversation">
+            </MudIconButton>
+            <MudSpacer />
+            <MudTextField T="string" Class="mt-0" Placeholder="Search"
+                Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium"
+                ValueChanged="@(s=>OnSearch(s))">
+            </MudTextField>
+        </ToolBarContent>
+        <HeaderContent>
+            <MudTh><MudTableSortLabel SortLabel="title" T="Conversation">Title</MudTableSortLabel></MudTh>
+            <MudTh><MudTableSortLabel SortLabel="date" T="Conversation">Created</MudTableSortLabel></MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Title">
+                <MudIconButton aria-label="open" Icon="@Icons.Material.Filled.OpenInNew"
+                    OnClick="@((e) => OpenConversation(e, context))">
+                </MudIconButton>
+                @context.Title
+            </MudTd>
+            <MudTd DataLabel="Created">
+                <MudIconButton @onclick="((e) => ConfirmAsync(e, context))" Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Default"></MudIconButton>
+                <LocalTime DateTime="@context.Created" Format="dddd, dd/MM/yyyy - HH:mm:ss"/>
+            </MudTd>
+        </RowTemplate>
+        <NoRecordsContent>
+            <MudText>No matching records found</MudText>
+        </NoRecordsContent>
+        <LoadingContent>
+            <MudText>Loading...</MudText>
+        </LoadingContent>
+        <PagerContent>
+            <MudTablePager />
+        </PagerContent>
+    </MudTable>
+</MudContainer>
+
+
+@code {
+    private MudTable<Conversation>? table;
+    private string searchString = "";
+    private MudDialog? MudDialog { get; set; }
+
+    private void OpenConversation(MouseEventArgs clickEvent, Conversation conversation)
+    {
+        navigator.NavigateTo($"/conversations/{conversation.Id}");
+    }
+
+    /// <summary>
+    /// Here we simulate getting the paged, filtered and ordered data from the server
+    /// </summary>
+    private async Task<TableData<Conversation>> ServerReload(TableState state, CancellationToken token)
+    {
+        // add filtering, sorting & pagination
+        var data = await _service.GetAsync();
+        return new TableData<Conversation>() {TotalItems = data.Count(), Items = data};
+    }
+
+    private void OnSearch(string text)
+    {
+        searchString = text;
+        table!.ReloadServerData();
+    }
+
+    private async Task ConfirmAsync(MouseEventArgs clickEvent, Conversation conversation)
+    {
+        var parameters = new DialogParameters<ConfirmDialog>
+        {
+            { x => x.ContentText, "Are you sure you want to remove this conversation?" },
+            { x => x.ButtonText, "Yes" },
+            { x => x.Color, Color.Error }
+        };
+
+        var dialog = await DialogService.ShowAsync<ConfirmDialog>("Confirm", parameters, new() { FullWidth = false });
+        var result = await dialog.Result;
+        if (result!.Canceled) return;
+        await _conversationService.RemoveAsync(conversation.Id!);
+        await table!.ReloadServerData();
+    }
+
+    private void AddConversation() {
+        navigator.NavigateTo($"/conversations/...");
+    }
+}

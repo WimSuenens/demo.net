@@ -1,0 +1,189 @@
+﻿@page "/conversations/{id}"
+
+@using System.Threading
+@using System.Net.Http.Json
+@using Anthropic
+@using MyDemoAPI.Data.Models
+@using MyDemoAPI.Services
+@using System.Globalization
+@using System.ComponentModel.DataAnnotations
+@using static MyDemoAPI.Components.Pages.Conversations.ConversationSettings
+
+@inject IConversationService _service
+@inject IAnthropicService _anthropic
+@inject NavigationManager navigator
+@inject IDialogService DialogService
+@inject IJSRuntime JSRuntime
+
+@inject NavigationManager router
+
+<PageTitle>Detail | Conversation</PageTitle>
+
+@if(_loading)
+{
+    <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
+}
+<MudContainer Class="w-100 pa-4 flex-grow-1 d-flex flex-column">
+  <MudText Typo="Typo.h6" GutterBottom="true">@(conversation?.Title ?? "How can I help you today?e")</MudText>
+  @foreach(var info in messages) {
+    <div class="@(info.Message.Role == 0 ? "ml-auto mr-0" : "")">
+      <div style="@(info.Message.Role == 0 ? "text-align: end;" : "")"><span>@(info.Message.Role == 0 ? "You" : "AI")</span></div>
+      <MudPaper class="mb-2 pa-2" style="width: fit-content;">@info.Message.Content</MudPaper>
+    </div>
+  }
+  <MudSpacer />
+
+  @if(errors != null && errors.Count() > 0) {
+    <h2>Errors</h2>
+    <ul class="text-danger">
+      @foreach(var error in errors) {
+        <li>@error</li>
+      }
+    </ul>
+  }
+  <MudPaper Class="pa-4" Elevation="3">
+    <EditForm Model="@form" OnValidSubmit="OnValidSubmit" enctype="multipart/form-data">
+      <DataAnnotationsValidator/>
+      <MudContainer class="pa-0">
+        <MudTextField Lines="5" Label="Message" HelperText="Enter a descriptive message..."
+          @bind-Value="form.Message" For="@(() => form.Message)"
+        />
+      </MudContainer>
+      <MudContainer class="pa-0 d-flex justify-end align-baseline">
+        <MudText>@GetModelName(form.Model)?.Label</MudText>
+        @* <MudSelect T="string" Label="Model" Clearable @bind-Value="form.Model"
+          AnchorOrigin="Origin.BottomCenter">
+          @foreach(var model in models) {
+            <MudSelectItem Value="@(model.Name)">@model.Label</MudSelectItem>
+          }
+        </MudSelect> *@
+        <MudSpacer/>
+        <MudFileUpload @ref="@(_fileUpload)" For="@(() => form.Files)" Accept=".pdf, .png, .jpg" T="IReadOnlyList<IBrowserFile>" multiple @bind-Files="form.Files" OnFilesChanged="UploadFiles">
+          <ActivatorContent>
+            <MudButton Variant="Variant.Text" Color="Color.Default" StartIcon="@Icons.Material.Filled.CloudUpload">
+              @if (form.Files != null && form.Files.Count() > 0)
+              {
+                @foreach (var file in form.Files)
+                {
+                  @file.Name
+                }
+              } else { <span>Select a file</span> }
+            </MudButton>
+          </ActivatorContent>
+        </MudFileUpload>
+        @if (form.Files != null && form.Files.Count() > 0) {
+          <div @onclick:stopPropagation="true" @onclick:preventDefault="true">
+            <MudIconButton class="pa-1" Icon="@Icons.Material.Filled.Clear"
+                OnClick="@ClearAsync" />
+          </div>
+        }
+        <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" EndIcon="@Icons.Material.Filled.Send" Class="mx-2">Send</MudButton>
+        <div>
+          <MudIconButton class="pa-1" Icon="@Icons.Material.Filled.Settings" OnClick="@OpenSettings"/>
+        </div>
+      </MudContainer>
+    </EditForm>
+  </MudPaper>
+</MudContainer>
+
+@code {
+  private List<MessageInfo> messages = new() {
+    new() { Message = new() { Role = MessageRole.User, Content = "Hello Claude" }},
+    new() { Message = new() { Role = MessageRole.Assistant, Content = "Hello you! How can I help?" }},
+    new() { Message = new() { Role = MessageRole.User, Content = "I need to layout the chat" }},
+  };
+
+  [Parameter]
+  public string Id { get; set; } = string.Empty;
+  private Conversation? conversation { get; set; }
+  private bool _loading;
+  ConversationAddForm form = new ConversationAddForm();
+  @* IList<IBrowserFile> _files = new List<IBrowserFile>(); *@
+  @* private void UploadFiles(IBrowserFile file)
+  {
+    _files.Add(file);
+    //TODO upload the files to the server
+  } *@
+
+  private AIModel? GetModelName(string Name) {
+    return models.FirstOrDefault(x => x.Name == Name);
+  }
+  public MudFileUpload<IReadOnlyList<IBrowserFile>>? _fileUpload;
+  private Task ClearAsync(MouseEventArgs clickEvent) {
+    return _fileUpload?.ClearAsync() ?? Task.CompletedTask;
+  }
+  private long maxFileSize = 1024 * 1024 * 3; // = 3MB
+  private int maxAllowedFiles = 3;
+  private List<string> errors = new();
+  private void UploadFiles(InputFileChangeEventArgs args)
+  {
+    errors.Clear();
+    @* form.Files.Clear(); *@
+    if (args.FileCount > maxAllowedFiles) {
+      errors.Add($"Error: attempting to upload {args.FileCount} files, but only {maxAllowedFiles} are allowed.");
+      return;
+    }
+    var files = args.GetMultipleFiles(maxAllowedFiles);
+    foreach(var file in args.GetMultipleFiles()) {
+      if (file.Size > maxFileSize) {
+        errors.Add($"Error: {args.File.Name} is {file.Size} bytes. Only {maxFileSize} bytes are allowed.");
+        return;
+      }
+      @* form.Files.Add(args.File); *@
+    }
+    form.Files = files;
+    //TODO upload the files to the server
+  }
+  
+  protected override async Task OnParametersSetAsync() {
+    if (Id == "..." || Id == "new") return;
+    conversation = await _service.GetAsync(Id);    
+  }
+
+  private async Task OnValidSubmit(EditContext context)
+  {
+    if (conversation is null || conversation.Id is null) {
+      _loading = true;
+      var conversation = await _service.CreateAsync(form);
+      @* navigator.NavigateTo($"/conversations/{newId}"); *@
+      _loading = false;
+    }
+    StateHasChanged();
+  }
+
+
+
+  // https://docs.anthropic.com/en/docs/about-claude/models
+  @* public record AIModel(string Label, string Name); *@
+  @* public class AIModel {
+    public string Label { get; set; }
+    public string Name { get; set; }
+    public AIModel(string label, string name) {
+      Label = label;
+      Name = name;
+    }
+  }; *@
+  Func<AIModel,string> converter = p => p.Label;
+  private List<AIModel> models = AIModel.GetOptions();
+
+  @* private string model { get; set; } = "claude-3-haiku-20240307"; *@
+
+  public async Task OpenSettings(MouseEventArgs clickEvent) {
+    var parameters = new DialogParameters<ConversationSettings>() {
+      {
+        x => x.form,
+        new ConversationSettingsForm() {
+          Model = form.Model
+        }
+      }
+    };
+    var dialog = await DialogService.ShowAsync<ConversationSettings>("Settings", parameters, new DialogOptions() {
+      BackgroundClass = "backdrop-blur"
+    });
+    var result = await dialog.Result;
+    if (result!.Canceled) return;
+    if (result.Data is ConversationSettingsForm data) {
+      form.Model = data.Model!;
+    }
+  }
+}

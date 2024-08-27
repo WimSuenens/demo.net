@@ -1,0 +1,71 @@
+{
+  "name": "Demo by .NET",
+  "dockerComposeFile": "docker-compose.yml",
+	"service": "app",
+	"workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
+  // "image": "mcr.microsoft.com/dotnet/sdk:8.0",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    // "ghcr.io/devcontainers/features/github-cli:1": {
+    //     "version": "2"
+    // },
+    // "ghcr.io/devcontainers/features/powershell:1": {
+    //     "version": "latest"
+    // },
+    // "ghcr.io/azure/azure-dev/azd:0": {
+    //     "version": "latest"
+    // },
+    // "ghcr.io/devcontainers/features/common-utils:2": {},
+    // "ghcr.io/devcontainers/features/dotnet:2": {
+    //     "version": "none",
+    //     "dotnetRuntimeVersions": "7.0",
+    //     "aspNetCoreRuntimeVersions": "7.0"
+    // }
+    "ghcr.io/devcontainers/features/dotnet:2": {
+      // "version": "8.0",
+      // "dotnetRuntimeVersions": "8.0",
+      // "aspNetCoreRuntimeVersions": "8.0"
+    }
+  },
+  "containerEnv": {
+    "SHELL": "/bin/bash"
+  },
+  "customizations": {
+    "vscode": {
+      // Set *default* container specific settings.json values on container create.
+      "settings": {
+        "terminal.integrated.shell.linux": "/bin/bash",
+        "FSharp.showExplorerOnStartup": false
+      },
+      // Add the IDs of extensions you want installed when the container is created.
+      "extensions": [
+        "ms-dotnettools.csharp",
+        "ms-dotnettools.vscode-dotnet-runtime",
+        "ms-dotnettools.csdevkit",
+        "ms-dotnettools.vscode-dotnet-pack",
+        "cweijan.vscode-database-client2",
+        "mongodb.mongodb-vscode",
+        "EditorConfig.EditorConfig"
+      ]
+    }
+  },
+  // "runArgs": ["--init"],
+  // "mounts": [ "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind" ],
+  // "mounts": [ "source=/Users/wimsuenens/.docker/run/docker.sock,target=/var/run/docker.sock,type=bind" ],
+
+  // Use 'forwardPorts' to make a list of ports inside the container available locally.
+  // "forwardPorts": ["5432"],
+  
+  // Use 'postCreateCommand' to run commands after the container is created.
+  // "postCreateCommand": "dotnet workload update && dotnet workload install aspire"
+  // "postCreateCommand": "dotnet tool install --global dotnet-ef && dotnet tool install -g dotnet-aspnet-codegenerator && dotnet new install MudBlazor.Templates"
+  "postCreateCommand": "dotnet new install MudBlazor.Templates"
+
+  // Comment out `postStartCommand` if you're using vscode 1.60.0 or older due to a bug.
+  // See: https://github.com/microsoft/vscode-remote-release/issues/5645
+  // "postStartCommand": "uname -a",
+
+  // Comment out `remoteUser` if you're using vscode 1.60.0 or older due to a bug.
+  // See: https://github.com/microsoft/vscode-remote-release/issues/5443
+  // "remoteUser": "vscode"
+}
